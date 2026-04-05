@@ -1,0 +1,45 @@
+.box {
+  border-radius: 6px;
+  padding: 11px 13px;
+  margin-top: 12px;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+@media (min-width: 768px) {
+  .box {
+    border-radius: 8px;
+    padding: 13px 15px;
+    margin-top: 16px;
+    font-size: 13px;
+    line-height: 1.55;
+  }
+}
+
+.network, .validation {
+  background: #fef2f2;
+  border: 0.5px solid #fca5a5;
+  color: #991b1b;
+}
+
+.api {
+  background: var(--warn-bg);
+  border: 0.5px solid var(--warn-border);
+  color: var(--warn-text);
+}
+
+.parse {
+  background: var(--accent-bg);
+  border: 0.5px solid var(--accent-border);
+  color: #3730a3;
+}
+
+.title   { font-weight: 500; margin-bottom: 3px; }
+.message { margin-bottom: 4px; }
+.hint    { font-size: 10px; opacity: 0.75; font-style: italic; }
+
+@media (min-width: 768px) {
+  .title   { margin-bottom: 4px; }
+  .message { margin-bottom: 5px; }
+  .hint    { font-size: 11px; }
+}

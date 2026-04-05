@@ -1,0 +1,112 @@
+.list { 
+  display: flex; 
+  flex-direction: column; 
+  gap: 6px; 
+  margin: 1rem 0 20px 0; 
+}
+
+@media (min-width: 768px) {
+  .list {
+    gap: 8px;
+    margin: 1.25rem 0 28px 0;
+  }
+}
+
+@media (min-width: 1024px) {
+  .list {
+    margin: 1.5rem 0 32px 0;
+  }
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 11px;
+  border-radius: 6px;
+  border: 1px solid #E9E9E9;
+  background: white;
+  transition: opacity 0.3s, background 0.3s;
+}
+
+@media (min-width: 768px) {
+  .row {
+    gap: 12px;
+    padding: 10px 13px;
+    border-radius: 8px;
+  }
+}
+
+.row.done {
+  opacity: 0.55;
+  background: #FAFAFA;
+  border-color: #F0F0F0;
+}
+
+.dot {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9px;
+  font-weight: 600;
+  flex-shrink: 0;
+  transition: all 0.25s;
+}
+
+@media (min-width: 768px) {
+  .dot {
+    width: 20px;
+    height: 20px;
+    font-size: 10px;
+  }
+}
+
+.idle {
+  background: #F5F5F5;
+  border: 1px solid #E9E9E9;
+  color: #999;
+}
+
+.running {
+  background: var(--warn-bg);
+  border: 1px solid var(--warn-border);
+  color: var(--warn-text);
+  animation: pulse 1s ease-in-out infinite;
+}
+
+.done {
+  background: var(--ok-bg);
+  border: 1px solid var(--ok-border);
+  color: var(--ok);
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.45; }
+}
+
+.label { 
+  font-size: 12px; 
+  font-weight: 500; 
+  color: #333; 
+}
+
+@media (min-width: 768px) {
+  .label {
+    font-size: 13px;
+  }
+}
+
+.sub   { 
+  font-size: 11px; 
+  color: #999; 
+}
+
+@media (min-width: 768px) {
+  .sub {
+    font-size: 12px;
+  }
+}
