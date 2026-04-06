@@ -1,7 +1,7 @@
 import styles from "./ErrorBox.module.css";
 
 interface ErrorBoxProps {
-  type: "network" | "api" | "parse" | "validation";
+  type: "network" | "api" | "parse" | "validation" | "warning";
   message: string;
   hint?: string;
 }
@@ -11,6 +11,7 @@ const TITLES: Record<string, string> = {
   api:        "API error",
   parse:      "Parse error",
   validation: "Validation error",
+  warning:    "Notice",
 };
 
 export function ErrorBox({ type, message, hint }: ErrorBoxProps) {

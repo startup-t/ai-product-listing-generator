@@ -6,6 +6,11 @@ import { UploadZone } from "@/components/UploadZone";
 import { ProgressSteps, STEPS } from "@/components/ProgressSteps";
 import { ErrorBox } from "@/components/ErrorBox";
 import { ListingPreview } from "@/components/ListingPreview";
+import {
+  placeOnWhiteBackground,
+  removeBackgroundFromImage,
+  resizeImageForBackgroundRemoval,
+} from "@/lib/removeBackground";
 import type { ListingDraft } from "@/types/listing";
 import type { StepState } from "@/components/ProgressSteps";
 import styles from "./page.module.css";
@@ -16,17 +21,29 @@ type AppError = {
   hint?: string;
 };
 
+type Notice = {
+  message: string;
+  hint?: string;
+};
+
 type StepId = "bg" | "vision" | "price" | "listing";
+
+type ImageAsset = {
+  base64: string;
+  mediaType: string;
+  previewUrl: string;
+};
 
 export default function Home() {
   const [file, setFile] = useState<File | null>(null);
-  const [preview, setPreview] = useState<string | null>(null);
+  const [imageAsset, setImageAsset] = useState<ImageAsset | null>(null);
   const [stepStates, setStepStates] = useState<Record<StepId, StepState>>({
     bg: "idle", vision: "idle", price: "idle", listing: "idle",
   });
   const [generating, setGenerating] = useState(false);
   const [showProgress, setShowProgress] = useState(false);
   const [error, setError] = useState<AppError | null>(null);
+  const [notice, setNotice] = useState<Notice | null>(null);
   const [listing, setListing] = useState<ListingDraft | null>(null);
   const [language, setLanguage] = useState<"en" | "fil">("en");
 
@@ -34,57 +51,88 @@ export default function Home() {
     setStepStates((prev) => ({ ...prev, [id]: state }));
   }
 
+  function parseDataUrl(dataURL: string): ImageAsset {
+    const [header, base64 = ""] = dataURL.split(",");
+    const mediaTypeMatch = header.match(/^data:(.*?);base64$/);
+
+    return {
+      base64,
+      mediaType: mediaTypeMatch?.[1] || "image/jpeg",
+      previewUrl: dataURL,
+    };
+  }
+
   function handleFile(f: File, dataURL: string) {
     setFile(f);
-    setPreview(dataURL);
+    setImageAsset(parseDataUrl(dataURL));
     setListing(null);
     setError(null);
+    setNotice(null);
     setShowProgress(false);
     setStepStates({ bg: "idle", vision: "idle", price: "idle", listing: "idle" });
   }
 
   function reset() {
     setFile(null);
-    setPreview(null);
+    setImageAsset(null);
     setListing(null);
     setError(null);
+    setNotice(null);
     setShowProgress(false);
     setGenerating(false);
     setStepStates({ bg: "idle", vision: "idle", price: "idle", listing: "idle" });
   }
 
   async function generate() {
-    if (!file || !preview) return;
+    if (!file || !imageAsset) return;
     setGenerating(true);
     setListing(null);
     setError(null);
+    setNotice(null);
     setShowProgress(true);
     setStepStates({ bg: "idle", vision: "idle", price: "idle", listing: "idle" });
 
     try {
-      // Step 1 — background removal (simulated; swap in real bg removal here)
       setStep("bg", "running");
-      await new Promise((r) => setTimeout(r, 900));
-      setStep("bg", "done");
+      let generationImageBase64 = imageAsset.base64;
+      let generationMediaType = imageAsset.mediaType;
 
-      // Steps 2-4 run during the API call
+      if (!generationImageBase64 || generationImageBase64.length < 100) {
+        throw { type: "validation", message: "Image data could not be read.", hint: "Try a different image file." } as AppError;
+      }
+
+      try {
+        const resizedFile = await resizeImageForBackgroundRemoval(file);
+        const removedBgBlob = await removeBackgroundFromImage(resizedFile);
+        const cleanedDataUrl = await placeOnWhiteBackground(removedBgBlob);
+        const cleanedImage = parseDataUrl(cleanedDataUrl);
+
+        generationImageBase64 = cleanedImage.base64;
+        generationMediaType = cleanedImage.mediaType;
+        setImageAsset({
+          base64: cleanedImage.base64,
+          mediaType: cleanedImage.mediaType,
+          previewUrl: cleanedImage.previewUrl,
+        });
+      } catch (bgErr) {
+        console.error("Background removal failed:", bgErr);
+        setNotice({
+          message: "Could not remove the image background, so the original upload will be used.",
+          hint: "Listing generation will continue with the original uploaded image.",
+        });
+      }
+
+      setStep("bg", "done");
       setStep("vision", "running");
       setStep("price", "running");
       setStep("listing", "running");
-
-      const base64 = preview.split(",")[1];
-      const mediaType = file.type || "image/jpeg";
-
-      if (!base64 || base64.length < 100) {
-        throw { type: "validation", message: "Image data could not be read.", hint: "Try a different image file." } as AppError;
-      }
 
       const res = await fetch("/api/generate-listing", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          imageBase64: base64,
-          mediaType,
+          imageBase64: generationImageBase64,
+          mediaType: generationMediaType,
           language,
         }),
       });
@@ -99,7 +147,6 @@ export default function Home() {
       if (!data.listing) {
         throw { type: "parse", message: "Server returned no listing data.", hint: "Try again." } as AppError;
       }
-
       setStep("vision", "done");
       setStep("price", "done");
       setStep("listing", "done");
@@ -136,6 +183,7 @@ export default function Home() {
   }
 
   const steps = STEPS.map((s) => ({ ...s, state: stepStates[s.id as StepId] }));
+  const preview = imageAsset?.previewUrl ?? null;
 
   return (
     <main className={styles.main}>
@@ -203,6 +251,7 @@ export default function Home() {
 
         {/* Error */}
         {error && <ErrorBox type={error.type} message={error.message} hint={error.hint} />}
+        {!error && notice && <ErrorBox type="warning" message={notice.message} hint={notice.hint} />}
 
         {/* Result */}
         {listing && <ListingPreview listing={listing} />}

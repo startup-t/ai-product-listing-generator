@@ -34,6 +34,12 @@
   color: #3730a3;
 }
 
+.warning {
+  background: #fffbeb;
+  border: 0.5px solid #fcd34d;
+  color: #92400e;
+}
+
 .title   { font-weight: 500; margin-bottom: 3px; }
 .message { margin-bottom: 4px; }
 .hint    { font-size: 10px; opacity: 0.75; font-style: italic; }
