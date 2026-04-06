@@ -6,9 +6,18 @@ import styles from "./UploadZone.module.css";
 interface UploadZoneProps {
   onFile: (file: File, dataURL: string) => void;
   preview: string | null;
+  downloadHref?: string | null;
+  downloadName?: string;
+  showDownload?: boolean;
 }
 
-export function UploadZone({ onFile, preview }: UploadZoneProps) {
+export function UploadZone({
+  onFile,
+  preview,
+  downloadHref,
+  downloadName = "product-image-cleaned.jpg",
+  showDownload = false,
+}: UploadZoneProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
 
@@ -42,7 +51,24 @@ export function UploadZone({ onFile, preview }: UploadZoneProps) {
         onChange={(e) => { if (e.target.files?.[0]) loadFile(e.target.files[0]); }}
       />
       {preview ? (
-        <img src={preview} alt="Product preview" className={styles.preview} />
+        <div className={styles.previewWrap}>
+          <div className={styles.previewFrame}>
+            <div className={styles.previewInner}>
+              <img src={preview} alt="Product preview" className={styles.preview} />
+            </div>
+          </div>
+          {showDownload && downloadHref && (
+            <div className={styles.previewActions}>
+              <a
+                href={downloadHref}
+                download={downloadName}
+                className={styles.downloadBtn}
+              >
+                Download cleaned image
+              </a>
+            </div>
+          )}
+        </div>
       ) : (
         <div className={styles.placeholder}>
           <div className={styles.icon}>

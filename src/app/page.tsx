@@ -37,6 +37,7 @@ type ImageAsset = {
 export default function Home() {
   const [file, setFile] = useState<File | null>(null);
   const [imageAsset, setImageAsset] = useState<ImageAsset | null>(null);
+  const [hasProcessedImage, setHasProcessedImage] = useState(false);
   const [stepStates, setStepStates] = useState<Record<StepId, StepState>>({
     bg: "idle", vision: "idle", price: "idle", listing: "idle",
   });
@@ -65,6 +66,7 @@ export default function Home() {
   function handleFile(f: File, dataURL: string) {
     setFile(f);
     setImageAsset(parseDataUrl(dataURL));
+    setHasProcessedImage(false);
     setListing(null);
     setError(null);
     setNotice(null);
@@ -75,6 +77,7 @@ export default function Home() {
   function reset() {
     setFile(null);
     setImageAsset(null);
+    setHasProcessedImage(false);
     setListing(null);
     setError(null);
     setNotice(null);
@@ -114,8 +117,10 @@ export default function Home() {
           mediaType: cleanedImage.mediaType,
           previewUrl: cleanedImage.previewUrl,
         });
+        setHasProcessedImage(true);
       } catch (bgErr) {
         console.error("Background removal failed:", bgErr);
+        setHasProcessedImage(false);
         setNotice({
           message: "Could not remove the image background, so the original upload will be used.",
           hint: "Listing generation will continue with the original uploaded image.",
@@ -211,7 +216,13 @@ export default function Home() {
         </header>
 
         {/* Upload zone */}
-        <UploadZone onFile={handleFile} preview={preview} />
+        <UploadZone
+          onFile={handleFile}
+          preview={preview}
+          showDownload={hasProcessedImage}
+          downloadHref={hasProcessedImage ? preview : null}
+          downloadName="product-image-cleaned.jpg"
+        />
 
         {/* Actions */}
         <div className={styles.actions}>
@@ -229,7 +240,7 @@ export default function Home() {
             disabled={!file || generating}
             className={styles.generateBtn}
           >
-            {generating ? "Generating…" : "Generate listing"}
+            {generating ? "Generating listing..." : "Generate listing"}
           </button>
 
           {(listing || error) && (
