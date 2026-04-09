@@ -1,3 +1,5 @@
+import type { CountryCode, CurrencyCode, LanguageCode } from "@/lib/localization";
+
 export type ConfidenceLevel = "high" | "medium" | "low";
 
 export interface PriceSuggestion {
@@ -47,7 +49,9 @@ export interface ListingDraft {
 export interface GenerateListingRequest {
   imageBase64: string;
   mediaType: string;
-  language?: "en" | "fil";
+  language?: LanguageCode;
+  currency?: CurrencyCode;
+  country?: CountryCode;
 }
 
 export interface GenerateListingResponse {

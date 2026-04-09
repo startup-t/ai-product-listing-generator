@@ -1,7 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import Groq from "groq-sdk";
 import { GoogleGenAI } from "@google/genai";
-import { buildListingPrompt } from "@/lib/prompt";
+import { VISION_PROMPT, buildListingPrompt } from "@/lib/prompt";
+import {
+  getDefaultCurrency,
+  getDefaultLanguage,
+  isSupportedCountry,
+  isSupportedCurrency,
+  isSupportedLanguage,
+  type CountryCode,
+  type CurrencyCode,
+  type LanguageCode,
+} from "@/lib/localization";
 import type {
   GenerateListingResponse,
   ListingDraft,
@@ -13,16 +23,10 @@ import type {
 
 export const maxDuration = 60;
 
-// Safe to initialize once. The request handler still validates the key below.
 const ai = new GoogleGenAI({
   apiKey: process.env.GEMINI_API_KEY,
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
-// extractJSON
-// Strips markdown code fences that LLMs occasionally emit despite instructions.
-// Locates the first { and last } and slices between them.
-// ─────────────────────────────────────────────────────────────────────────────
 function extractJSON(raw: string): string {
   const first = raw.indexOf("{");
   const last = raw.lastIndexOf("}");
@@ -30,13 +34,13 @@ function extractJSON(raw: string): string {
   return raw.slice(first, last + 1);
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// callGroqListing
-// Sends the vision description to Groq Llama 3.3 and returns raw JSON text.
-// ─────────────────────────────────────────────────────────────────────────────
 async function callGroqListing(
   visionDescription: string,
-  language: "en" | "fil",
+  options: {
+    language: LanguageCode;
+    currency: CurrencyCode;
+    country: CountryCode;
+  },
   groqApiKey: string
 ): Promise<string> {
   const groq = new Groq({ apiKey: groqApiKey });
@@ -50,13 +54,13 @@ async function callGroqListing(
       {
         role: "system",
         content:
-          "You are Seller Agent. You generate structured ecommerce listings. " +
+          "You generate structured ecommerce listings. " +
           "Always respond with a single valid JSON object and nothing else. " +
           "No markdown. No code fences. No explanation. JSON only.",
       },
       {
         role: "user",
-        content: buildListingPrompt(visionDescription, language),
+        content: buildListingPrompt(visionDescription, options),
       },
     ],
   });
@@ -64,13 +68,11 @@ async function callGroqListing(
   return completion.choices[0]?.message?.content ?? "";
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// normalizeListing
-// Resolves field-name aliases and guarantees every field the frontend reads
-// is present and the correct type.
-// ─────────────────────────────────────────────────────────────────────────────
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function normalizeListing(raw: any): ListingDraft {
+function normalizeListing(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  raw: any,
+  fallbackCurrency: CurrencyCode
+): ListingDraft {
   const title: string =
     raw.title ?? raw.productTitle ?? raw.product_title ?? raw.name ?? "Untitled product";
 
@@ -119,11 +121,11 @@ function normalizeListing(raw: any): ListingDraft {
 
   let priceSuggestion: PriceSuggestion | null = null;
   if (rawPrice && typeof rawPrice === "object") {
-    const rec = Number(rawPrice.recommended ?? rawPrice.price ?? 0);
+    const recommended = Number(rawPrice.recommended ?? rawPrice.price ?? 0);
     priceSuggestion = {
-      recommended: Number.isFinite(rec) ? rec : 0,
+      recommended: Number.isFinite(recommended) ? recommended : 0,
       range: String(rawPrice.range ?? ""),
-      currency: String(rawPrice.currency ?? "PHP"),
+      currency: String(rawPrice.currency ?? fallbackCurrency),
       rationale: String(rawPrice.rationale ?? ""),
     };
   }
@@ -175,18 +177,13 @@ function normalizeListing(raw: any): ListingDraft {
   };
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Route handler
-// ─────────────────────────────────────────────────────────────────────────────
 export async function POST(
   req: NextRequest
 ): Promise<NextResponse<GenerateListingResponse>> {
-  // 1. Validate environment
   const groqApiKey = process.env.GROQ_API_KEY;
   const geminiApiKey = process.env.GEMINI_API_KEY;
 
   if (!groqApiKey || groqApiKey.trim() === "" || groqApiKey === "your_key_here") {
-    console.error("[seller-agent] GROQ_API_KEY is not configured");
     return NextResponse.json(
       {
         error: {
@@ -200,7 +197,6 @@ export async function POST(
   }
 
   if (!geminiApiKey || geminiApiKey.trim() === "" || geminiApiKey === "your_key_here") {
-    console.error("[seller-agent] GEMINI_API_KEY is not configured");
     return NextResponse.json(
       {
         error: {
@@ -213,16 +209,19 @@ export async function POST(
     );
   }
 
-  // 2. Parse and validate request body
   let imageBase64: string;
   let mediaType: string;
-  let language: "en" | "fil";
+  let country: CountryCode;
+  let language: LanguageCode;
+  let currency: CurrencyCode;
 
   try {
     const body = await req.json();
     imageBase64 = body.imageBase64;
     mediaType = body.mediaType || "image/jpeg";
-    language = (body.language === "fil" ? "fil" : "en") as "en" | "fil";
+    country = isSupportedCountry(body.country) ? body.country : "PH";
+    language = isSupportedLanguage(body.language) ? body.language : getDefaultLanguage(country);
+    currency = isSupportedCurrency(body.currency) ? body.currency : getDefaultCurrency(country);
 
     if (!imageBase64 || typeof imageBase64 !== "string" || imageBase64.length < 100) {
       return NextResponse.json(
@@ -230,7 +229,7 @@ export async function POST(
           error: {
             type: "validation",
             message: "Missing or invalid imageBase64 in request body",
-            hint: "Send { imageBase64: string, mediaType: string, language?: string } in the POST body",
+            hint: "Send imageBase64, mediaType, country, language, and currency in the POST body.",
           },
         },
         { status: 400 }
@@ -249,7 +248,6 @@ export async function POST(
     );
   }
 
-  // 3. Step 1 — Gemini vision analysis
   let visionDescription: string;
 
   try {
@@ -260,10 +258,7 @@ export async function POST(
           role: "user",
           parts: [
             {
-              text:
-                "Describe the product in this image for an online marketplace listing. " +
-                "Focus on product type, visible color, material, design details, brand cues, " +
-                "condition clues, and any features a seller would mention.",
+              text: VISION_PROMPT,
             },
             {
               inlineData: {
@@ -282,9 +277,7 @@ export async function POST(
     }
 
     visionDescription = caption;
-    console.log("[seller-agent] Gemini caption:", caption);
   } catch (err: unknown) {
-    console.error("[seller-agent] Gemini error:", err);
     const message = err instanceof Error ? err.message : String(err);
     const lower = message.toLowerCase();
 
@@ -365,15 +358,11 @@ export async function POST(
     );
   }
 
-  // 4. Step 2 — Groq listing generation
   let rawText: string;
 
   try {
-    console.log("Prompt language:", language);
-    rawText = await callGroqListing(visionDescription, language, groqApiKey);
-    console.log("[seller-agent] Groq response (first 500 chars):", rawText.slice(0, 500));
+    rawText = await callGroqListing(visionDescription, { language, currency, country }, groqApiKey);
   } catch (err: unknown) {
-    console.error("[seller-agent] Groq error:", err);
     const message = err instanceof Error ? err.message : String(err);
     const lower = message.toLowerCase();
 
@@ -441,27 +430,14 @@ export async function POST(
     );
   }
 
-  // 5. Sanitise
   const cleanText = extractJSON(rawText);
-  console.log(
-    "[seller-agent] Cleaned JSON before parse (first 300 chars):",
-    cleanText.slice(0, 300)
-  );
 
-  // 6. Parse
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let parsed: any;
 
   try {
     parsed = JSON.parse(cleanText);
   } catch {
-    console.error(
-      "[seller-agent] JSON.parse failed.\n  raw  :",
-      rawText.slice(0, 600),
-      "\n  clean:",
-      cleanText.slice(0, 600)
-    );
-
     return NextResponse.json(
       {
         error: {
@@ -474,17 +450,7 @@ export async function POST(
     );
   }
 
-  // 7. Normalize
-  const listing: ListingDraft = normalizeListing(parsed);
-
-  console.log(
-    "[seller-agent] Listing ready —",
-    `title: "${listing.title}" |`,
-    `keyFeatures: ${listing.keyFeatures.length} |`,
-    `tags: ${listing.tags.length} |`,
-    `shortDesc: ${listing.shortDescription.length} chars |`,
-    `fullDesc: ${listing.fullDescription.length} chars`
-  );
+  const listing: ListingDraft = normalizeListing(parsed, currency);
 
   return NextResponse.json({ listing });
 }

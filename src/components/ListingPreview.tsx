@@ -1,21 +1,40 @@
 "use client";
 
 import { useState } from "react";
+import {
+  formatCurrencyRange,
+  formatCurrencyValue,
+  t,
+  type CountryCode,
+  type CurrencyCode,
+  type LanguageCode,
+} from "@/lib/localization";
 import type { ListingDraft, ConfidenceLevel } from "@/types/listing";
 import styles from "./ListingPreview.module.css";
 
 interface ListingPreviewProps {
   listing: ListingDraft;
+  language: LanguageCode;
+  country: CountryCode;
+  currency: CurrencyCode;
 }
 
-function CopyButton({ text }: { text: string }) {
-  const [label, setLabel] = useState("Copy listing");
+function CopyButton({
+  text,
+  language,
+}: {
+  text: string;
+  language: LanguageCode;
+}) {
+  const [label, setLabel] = useState(t(language, "copyListing"));
+
   function copy() {
     navigator.clipboard.writeText(text).then(() => {
-      setLabel("Copied!");
-      setTimeout(() => setLabel("Copy listing"), 1600);
+      setLabel(t(language, "copied"));
+      setTimeout(() => setLabel(t(language, "copyListing")), 1600);
     });
   }
+
   return (
     <button className={styles.copyBtn} onClick={copy}>
       📋 {label}
@@ -31,32 +50,26 @@ function cfIcon(c: ConfidenceLevel) {
   return c === "high" ? "✓" : c === "medium" ? "~" : "?";
 }
 
-export function ListingPreview({ listing }: ListingPreviewProps) {
+export function ListingPreview({
+  listing,
+  language,
+  country,
+  currency,
+}: ListingPreviewProps) {
   const sp = listing.priceSuggestion;
 
+  const displayCurrency = (sp?.currency as CurrencyCode) || currency;
+
   const priceDisplay = sp?.recommended
-    ? new Intl.NumberFormat("en-PH", {
-      style: "currency",
-      currency: sp.currency || "PHP",
-      maximumFractionDigits: 0,
-    }).format(Number(sp.recommended))
+    ? formatCurrencyValue(Number(sp.recommended), displayCurrency, language, country)
     : "—";
 
   const rangeDisplay = sp?.range
-    ? sp.range
-      .split("-")
-      .map((v) =>
-        new Intl.NumberFormat("en-PH", {
-          style: "currency",
-          currency: sp.currency || "PHP",
-          maximumFractionDigits: 0,
-        }).format(Number(v))
-      )
-      .join(" – ")
+    ? formatCurrencyRange(sp.range, displayCurrency, language, country)
     : "";
 
   const specEntries = Object.entries(listing.specifications ?? {}).filter(
-    ([, v]) => v != null
+    ([, value]) => value != null
   ) as [string, string][];
 
   const platRows: [string, string][] = (
@@ -67,12 +80,10 @@ export function ListingPreview({ listing }: ListingPreviewProps) {
       ["tiktokShop", "TikTok Shop"],
       ["shopify", "Shopify"],
     ] as [string, string][]
-  ).filter(([k]) => listing.platformGuidance?.[k as keyof typeof listing.platformGuidance]);
+  ).filter(([key]) => listing.platformGuidance?.[key as keyof typeof listing.platformGuidance]);
 
   return (
     <div className={styles.root}>
-
-      {/* Hero — title, category, condition, price */}
       <div className={styles.card}>
         <div className={styles.cardBody}>
           <h2 className={styles.title}>{listing.title}</h2>
@@ -80,7 +91,10 @@ export function ListingPreview({ listing }: ListingPreviewProps) {
             {listing.category && <Pill label={listing.category} variant="cat" />}
             {listing.condition && (
               <Pill
-                label={listing.condition + (listing.confidence === "low" ? " (uncertain)" : "")}
+                label={
+                  listing.condition +
+                  (listing.confidence === "low" ? ` (${t(language, "conditionUncertain")})` : "")
+                }
                 variant={listing.confidence === "high" ? "ok" : "warn"}
               />
             )}
@@ -89,20 +103,19 @@ export function ListingPreview({ listing }: ListingPreviewProps) {
             <span className={styles.priceVal}>{priceDisplay}</span>
             {sp?.range && (
               <span className={styles.priceRange}>
-                range {rangeDisplay}
+                {t(language, "priceRange")} {rangeDisplay}
               </span>
             )}
           </div>
-          {sp && <p className={styles.priceRationale}>AI price estimate · based on comparable listings</p>}
+          {sp && <p className={styles.priceRationale}>{t(language, "priceEstimate")}</p>}
         </div>
       </div>
 
-      {/* Ready-to-post */}
       {listing.readyToPostText && (
         <div className={styles.card}>
           <div className={styles.cardHead}>
-            <span className={styles.cardLabel}>Ready-to-post listing</span>
-            <CopyButton text={listing.readyToPostText} />
+            <span className={styles.cardLabel}>{t(language, "readyToPost")}</span>
+            <CopyButton text={listing.readyToPostText} language={language} />
           </div>
           <div className={styles.cardBody}>
             <pre className={styles.postBlock}>{listing.readyToPostText}</pre>
@@ -110,18 +123,17 @@ export function ListingPreview({ listing }: ListingPreviewProps) {
         </div>
       )}
 
-      {/* Key Features first, then Short Description */}
       <div className={styles.twoCol}>
         <div className={styles.card}>
           <div className={styles.cardHead}>
-            <span className={styles.cardLabel}>Key features</span>
+            <span className={styles.cardLabel}>{t(language, "keyFeatures")}</span>
           </div>
           <div className={styles.cardBody}>
             <ul className={styles.bullets}>
-              {(listing.keyFeatures ?? []).map((b, i) => (
-                <li key={i} className={styles.bulletItem}>
+              {(listing.keyFeatures ?? []).map((bullet, index) => (
+                <li key={index} className={styles.bulletItem}>
                   <span className={styles.bulletDot} />
-                  <span>{b}</span>
+                  <span>{bullet}</span>
                 </li>
               ))}
             </ul>
@@ -129,7 +141,7 @@ export function ListingPreview({ listing }: ListingPreviewProps) {
         </div>
         <div className={styles.card}>
           <div className={styles.cardHead}>
-            <span className={styles.cardLabel}>Short description</span>
+            <span className={styles.cardLabel}>{t(language, "shortDescription")}</span>
           </div>
           <div className={styles.cardBody}>
             <p className={styles.shortDesc}>{listing.shortDescription}</p>
@@ -137,29 +149,27 @@ export function ListingPreview({ listing }: ListingPreviewProps) {
         </div>
       </div>
 
-      {/* Full description */}
       <div className={styles.card}>
         <div className={styles.cardHead}>
-          <span className={styles.cardLabel}>Full description</span>
-          <CopyButton text={listing.fullDescription} />
+          <span className={styles.cardLabel}>{t(language, "fullDescription")}</span>
+          <CopyButton text={listing.fullDescription} language={language} />
         </div>
         <div className={styles.cardBody}>
           <p className={styles.fullDesc}>{listing.fullDescription}</p>
         </div>
       </div>
 
-      {/* Specifications */}
       {specEntries.length > 0 && (
         <div className={styles.card}>
           <div className={styles.cardHead}>
-            <span className={styles.cardLabel}>Specifications</span>
+            <span className={styles.cardLabel}>{t(language, "specifications")}</span>
           </div>
           <div className={styles.cardBody}>
             <div className={styles.specsGrid}>
-              {specEntries.map(([k, v]) => (
-                <div key={k} className={styles.specItem}>
-                  <span className={styles.specKey}>{k}</span>
-                  <span className={styles.specVal}>{v}</span>
+              {specEntries.map(([key, value]) => (
+                <div key={key} className={styles.specItem}>
+                  <span className={styles.specKey}>{key}</span>
+                  <span className={styles.specVal}>{value}</span>
                 </div>
               ))}
             </div>
@@ -167,35 +177,35 @@ export function ListingPreview({ listing }: ListingPreviewProps) {
         </div>
       )}
 
-      {/* Tags */}
       {listing.tags?.length > 0 && (
         <div className={styles.card}>
           <div className={styles.cardHead}>
-            <span className={styles.cardLabel}>Tags</span>
+            <span className={styles.cardLabel}>{t(language, "tags")}</span>
           </div>
           <div className={styles.cardBody}>
             <div className={styles.tagsWrap}>
-              {listing.tags.map((t) => (
-                <span key={t} className={styles.tag}>{t}</span>
+              {listing.tags.map((tag) => (
+                <span key={tag} className={styles.tag}>
+                  {tag}
+                </span>
               ))}
             </div>
           </div>
         </div>
       )}
 
-      {/* Platform tips */}
       {platRows.length > 0 && (
         <div className={styles.card}>
           <div className={styles.cardHead}>
-            <span className={styles.cardLabel}>Platform tips</span>
+            <span className={styles.cardLabel}>{t(language, "platformTips")}</span>
           </div>
           <div className={styles.cardBody}>
             <div className={styles.platList}>
-              {platRows.map(([k, label]) => (
-                <div key={k} className={styles.platRow}>
+              {platRows.map(([key, label]) => (
+                <div key={key} className={styles.platRow}>
                   <span className={styles.platName}>{label}</span>
                   <span className={styles.platTip}>
-                    {listing.platformGuidance[k as keyof typeof listing.platformGuidance]}
+                    {listing.platformGuidance[key as keyof typeof listing.platformGuidance]}
                   </span>
                 </div>
               ))}
@@ -204,25 +214,28 @@ export function ListingPreview({ listing }: ListingPreviewProps) {
         </div>
       )}
 
-      {/* Confidence notes */}
       {listing.confidenceFlags?.length > 0 && (
         <div className={styles.card}>
           <div className={styles.cardHead}>
-            <span className={styles.cardLabel}>Confidence notes</span>
+            <span className={styles.cardLabel}>{t(language, "confidenceNotes")}</span>
           </div>
           <div className={styles.cardBody}>
             <div className={styles.flagList}>
-              {listing.confidenceFlags.map((f, i) => (
-                <div key={i} className={styles.flagRow}>
+              {listing.confidenceFlags.map((flag, index) => (
+                <div key={index} className={styles.flagRow}>
                   <svg
-                    width="13" height="13" viewBox="0 0 24 24"
-                    fill="none" stroke="currentColor" strokeWidth={2}
+                    width="13"
+                    height="13"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth={2}
                     style={{ flexShrink: 0, marginTop: 2 }}
                   >
                     <circle cx="12" cy="12" r="10" />
                     <path strokeLinecap="round" d="M12 8v4m0 4h.01" />
                   </svg>
-                  {f}
+                  {flag}
                 </div>
               ))}
             </div>
@@ -230,21 +243,20 @@ export function ListingPreview({ listing }: ListingPreviewProps) {
         </div>
       )}
 
-      {/* Overall confidence badge */}
       <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 12 }}>
-        <span style={{
-          fontSize: 11,
-          color: "#999",
-          padding: "4px 10px",
-          border: "1px solid #E9E9E9",
-          borderRadius: 20,
-          backgroundColor: "#FAFAFA",
-        }}>
-          {cfIcon(listing.confidence)} overall confidence: {listing.confidence}
+        <span
+          style={{
+            fontSize: 11,
+            color: "#999",
+            padding: "4px 10px",
+            border: "1px solid #E9E9E9",
+            borderRadius: 20,
+            backgroundColor: "#FAFAFA",
+          }}
+        >
+          {cfIcon(listing.confidence)} {t(language, "overallConfidence")}: {listing.confidence}
         </span>
       </div>
-
     </div>
   );
 }
-

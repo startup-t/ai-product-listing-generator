@@ -6,6 +6,9 @@ import styles from "./UploadZone.module.css";
 interface UploadZoneProps {
   onFile: (file: File, dataURL: string) => void;
   preview: string | null;
+  title?: string;
+  subtitle?: string;
+  downloadLabel?: string;
   downloadHref?: string | null;
   downloadName?: string;
   showDownload?: boolean;
@@ -14,6 +17,9 @@ interface UploadZoneProps {
 export function UploadZone({
   onFile,
   preview,
+  title = "Drop a product photo here",
+  subtitle = "or click to browse — JPG, PNG, WEBP",
+  downloadLabel = "Download cleaned image",
   downloadHref,
   downloadName = "product-image-cleaned.jpg",
   showDownload = false,
@@ -64,7 +70,7 @@ export function UploadZone({
                 download={downloadName}
                 className={styles.downloadBtn}
               >
-                Download cleaned image
+                {downloadLabel}
               </a>
             </div>
           )}
@@ -77,8 +83,8 @@ export function UploadZone({
                 d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
             </svg>
           </div>
-          <p className={styles.title}>Drop a product photo here</p>
-          <p className={styles.sub}>or click to browse — JPG, PNG, WEBP</p>
+          <p className={styles.title}>{title}</p>
+          <p className={styles.sub}>{subtitle}</p>
         </div>
       )}
     </div>

@@ -1,0 +1,194 @@
+.floatingButton {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 30;
+  min-height: 40px;
+  padding: 0 14px;
+  border: 1px solid rgba(79, 70, 229, 0.18);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.95);
+  color: var(--accent);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  box-shadow: 0 8px 24px rgba(17, 24, 39, 0.08);
+  cursor: pointer;
+  backdrop-filter: blur(12px);
+}
+
+.floatingButton:hover {
+  background: #fff;
+  border-color: rgba(79, 70, 229, 0.28);
+}
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(17, 24, 39, 0.36);
+}
+
+.modal {
+  width: min(100%, 460px);
+  border-radius: 18px;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  box-shadow: 0 24px 60px rgba(17, 24, 39, 0.22);
+  overflow: hidden;
+}
+
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 18px 18px 12px;
+}
+
+.title {
+  font-size: 17px;
+  font-weight: 700;
+  color: #111827;
+}
+
+.description {
+  margin-top: 6px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: #6b7280;
+}
+
+.closeButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 999px;
+  background: #f3f4f6;
+  color: #374151;
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 0 18px 18px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #374151;
+}
+
+.input,
+.select,
+.textarea {
+  width: 100%;
+  border: 1px solid #d1d5db;
+  border-radius: 10px;
+  background: #fff;
+  color: #111827;
+  font: inherit;
+  font-size: 14px;
+  padding: 12px 13px;
+}
+
+.textarea {
+  resize: vertical;
+  min-height: 120px;
+}
+
+.input:focus,
+.select:focus,
+.textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.12);
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.secondaryButton,
+.primaryButton {
+  min-height: 42px;
+  padding: 0 14px;
+  border-radius: 10px;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.secondaryButton {
+  border: 1px solid #d1d5db;
+  background: #fff;
+  color: #374151;
+}
+
+.primaryButton {
+  border: none;
+  background: var(--accent);
+  color: #fff;
+}
+
+.primaryButton:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.error {
+  font-size: 13px;
+  color: #b91c1c;
+}
+
+.toast {
+  position: fixed;
+  right: 16px;
+  bottom: 68px;
+  z-index: 30;
+  max-width: min(320px, calc(100vw - 32px));
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--ok-border);
+  background: var(--ok-bg);
+  color: var(--ok);
+  font-size: 13px;
+  box-shadow: 0 12px 28px rgba(17, 24, 39, 0.12);
+}
+
+@media (min-width: 768px) {
+  .floatingButton {
+    right: 24px;
+    bottom: 24px;
+  }
+
+  .toast {
+    right: 24px;
+    bottom: 78px;
+  }
+
+  .overlay {
+    align-items: center;
+  }
+}
