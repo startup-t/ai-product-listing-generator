@@ -112,7 +112,7 @@ export async function POST(req: NextRequest): Promise<NextResponse<FeedbackRespo
       createdAt: new Date().toISOString(),
     };
 
-    const { error } = await supabase.from("feedback_submissions").insert({
+    const { error } = await supabase.from("feedback").insert({
       id: submission.id,
       category: submission.category,
       message: submission.message,

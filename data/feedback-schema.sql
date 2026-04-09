@@ -1,4 +1,4 @@
-CREATE TABLE feedback_submissions (
+CREATE TABLE feedback (
   id TEXT PRIMARY KEY,
   category TEXT NOT NULL,
   message TEXT NOT NULL,
