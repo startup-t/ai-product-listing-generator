@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
+import { createClient } from "@supabase/supabase-js";
 import {
   APP_VERSION,
   isSupportedCountry,
   isSupportedCurrency,
   isSupportedLanguage,
 } from "@/lib/localization";
-import { getSupabaseServerClient } from "@/lib/supabase-server";
 import type { FeedbackCategory, FeedbackResponse, FeedbackSubmission } from "@/types/feedback";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -19,7 +19,16 @@ const VALID_CATEGORIES: FeedbackCategory[] = [
 
 export async function POST(req: NextRequest): Promise<NextResponse<FeedbackResponse>> {
   try {
-    const supabase = getSupabaseServerClient();
+    console.log("SUPABASE_URL exists:", !!process.env.SUPABASE_URL);
+    console.log(
+      "SUPABASE_SERVICE_ROLE_KEY exists:",
+      !!process.env.SUPABASE_SERVICE_ROLE_KEY
+    );
+
+    const supabase = createClient(
+      process.env.SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    );
     const body = await req.json();
     const category = typeof body.category === "string" ? body.category : "";
     const message = typeof body.message === "string" ? body.message.trim() : "";
