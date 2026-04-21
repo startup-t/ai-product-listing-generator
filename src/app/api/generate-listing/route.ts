@@ -1,7 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import Groq from "groq-sdk";
-import { GoogleGenAI } from "@google/genai";
-import { VISION_PROMPT, buildListingPrompt } from "@/lib/prompt";
 import {
   getDefaultCurrency,
   getDefaultLanguage,
@@ -15,17 +12,12 @@ import {
 import type {
   GenerateListingResponse,
   ListingDraft,
-  PriceSuggestion,
-  PlatformGuidance,
-  Specifications,
-  ConfidenceLevel,
 } from "@/types/listing";
+import { GoogleGenAI } from "@google/genai";
 
 export const maxDuration = 60;
 
-const ai = new GoogleGenAI({
-  apiKey: process.env.GEMINI_API_KEY,
-});
+const GEMINI_MODEL = "gemini-flash-latest";
 
 function extractJSON(raw: string): string {
   const first = raw.indexOf("{");
@@ -34,167 +26,85 @@ function extractJSON(raw: string): string {
   return raw.slice(first, last + 1);
 }
 
-async function callGroqListing(
-  visionDescription: string,
-  options: {
-    language: LanguageCode;
-    currency: CurrencyCode;
-    country: CountryCode;
-  },
-  groqApiKey: string
-): Promise<string> {
-  const groq = new Groq({ apiKey: groqApiKey });
+async function generateListingFromImage(
+  base64Image: string,
+  mediaType = "image/jpeg"
+): Promise<{
+  title: string;
+  price: number;
+  description: string;
+  category: string;
+}> {
+  const apiKey = process.env.GEMINI_API_KEY;
 
-  const completion = await groq.chat.completions.create({
-    model: "llama-3.3-70b-versatile",
-    temperature: 0.2,
-    max_tokens: 2048,
-    response_format: { type: "json_object" },
-    messages: [
-      {
-        role: "system",
-        content:
-          "You generate structured ecommerce listings. " +
-          "Always respond with a single valid JSON object and nothing else. " +
-          "No markdown. No code fences. No explanation. JSON only.",
-      },
-      {
-        role: "user",
-        content: buildListingPrompt(visionDescription, options),
-      },
-    ],
-  });
-
-  return completion.choices[0]?.message?.content ?? "";
-}
-
-function normalizeListing(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  raw: any,
-  fallbackCurrency: CurrencyCode
-): ListingDraft {
-  const title: string =
-    raw.title ?? raw.productTitle ?? raw.product_title ?? raw.name ?? "Untitled product";
-
-  const shortDescription: string =
-    raw.shortDescription ?? raw.short_description ?? raw.summary ?? "";
-
-  const fullDescription: string =
-    raw.fullDescription ?? raw.full_description ?? raw.description ?? "";
-
-  const category: string =
-    raw.category ?? raw.productCategory ?? raw.product_category ?? "General";
-
-  const condition: string =
-    raw.condition ?? raw.productCondition ?? "Unknown";
-
-  const VALID_CONFIDENCE: ConfidenceLevel[] = ["high", "medium", "low"];
-  const confidence: ConfidenceLevel = VALID_CONFIDENCE.includes(raw.confidence)
-    ? (raw.confidence as ConfidenceLevel)
-    : "medium";
-
-  const rawFeatures =
-    raw.keyFeatures ??
-    raw.key_features ??
-    raw.bulletPoints ??
-    raw.bullet_points ??
-    raw.features ??
-    raw.highlights ??
-    [];
-
-  const keyFeatures: string[] = Array.isArray(rawFeatures)
-    ? rawFeatures.filter((x: unknown) => typeof x === "string" && x.trim() !== "")
-    : [];
-
-  const rawTags = raw.tags ?? raw.keywords ?? raw.searchTags ?? [];
-  const tags: string[] = Array.isArray(rawTags)
-    ? rawTags.filter((x: unknown) => typeof x === "string" && x.trim() !== "")
-    : [];
-
-  const rawPrice =
-    raw.priceSuggestion ??
-    raw.price_suggestion ??
-    raw.suggestedPrice ??
-    raw.suggested_price ??
-    raw.price ??
-    null;
-
-  let priceSuggestion: PriceSuggestion | null = null;
-  if (rawPrice && typeof rawPrice === "object") {
-    const recommended = Number(rawPrice.recommended ?? rawPrice.price ?? 0);
-    priceSuggestion = {
-      recommended: Number.isFinite(recommended) ? recommended : 0,
-      range: String(rawPrice.range ?? ""),
-      currency: String(rawPrice.currency ?? fallbackCurrency),
-      rationale: String(rawPrice.rationale ?? ""),
-    };
+  if (!apiKey || apiKey.trim() === "" || apiKey === "your_key_here") {
+    throw new Error("GEMINI_API_KEY is not set");
   }
 
-  const rawSpecs = raw.specifications ?? raw.specs ?? raw.attributes ?? {};
-  const specifications: Specifications = {
-    colour: rawSpecs.colour ?? rawSpecs.color ?? null,
-    material: rawSpecs.material ?? null,
-    brand: rawSpecs.brand ?? null,
-    size: rawSpecs.size ?? null,
-    style: rawSpecs.style ?? null,
-  };
+  const ai = new GoogleGenAI({ apiKey });
+  const response = await ai.models.generateContent({
+    model: GEMINI_MODEL,
+    contents: [
+      {
+        role: "user",
+        parts: [
+          {
+            text:
+              "Analyze this product image and generate a Shopee-ready listing for the Philippines. " +
+              "Return only a valid JSON object with exactly these fields: " +
+              'title (string), price (number in PHP), description (string), category (string). ' +
+              "Keep the title concise, the description clear and buyer-friendly, and the category specific.",
+          },
+          {
+            inlineData: {
+              mimeType: mediaType,
+              data: base64Image,
+            },
+          },
+        ],
+      },
+    ],
+    config: {
+      responseMimeType: "application/json",
+    },
+  });
 
-  const rawPlat = raw.platformGuidance ?? raw.platform_guidance ?? raw.platforms ?? {};
-  const platformGuidance: PlatformGuidance = {
-    facebookMarketplace:
-      rawPlat.facebookMarketplace ??
-      rawPlat.facebook ??
-      rawPlat.facebook_marketplace ??
-      "",
-    shopee: rawPlat.shopee ?? "",
-    lazada: rawPlat.lazada ?? "",
-    tiktokShop: rawPlat.tiktokShop ?? rawPlat.tiktok_shop ?? rawPlat.tiktok ?? "",
-    shopify: rawPlat.shopify ?? "",
-  };
+  const raw = extractJSON(response.text ?? "");
+  if (!raw) {
+    throw new Error("Gemini returned an empty response");
+  }
 
-  const readyToPostText: string =
-    raw.readyToPostText ?? raw.ready_to_post_text ?? raw.readyToPost ?? "";
+  const parsed = JSON.parse(raw) as Partial<{
+    title: string;
+    price: number | string;
+    description: string;
+    category: string;
+  }>;
 
-  const rawFlags = raw.confidenceFlags ?? raw.confidence_flags ?? raw.flags ?? [];
-  const confidenceFlags: string[] = Array.isArray(rawFlags)
-    ? rawFlags.filter((x: unknown) => typeof x === "string")
-    : [];
+  const title = parsed.title?.trim();
+  const description = parsed.description?.trim();
+  const category = parsed.category?.trim();
+  const numericPrice =
+    typeof parsed.price === "number"
+      ? parsed.price
+      : Number(String(parsed.price ?? "").replace(/[^\d.]/g, ""));
+
+  if (!title || !description || !category || !Number.isFinite(numericPrice)) {
+    throw new Error("Gemini returned incomplete listing data");
+  }
 
   return {
     title,
-    shortDescription,
-    keyFeatures,
-    fullDescription,
-    tags,
+    price: Math.round(numericPrice),
+    description,
     category,
-    condition,
-    priceSuggestion,
-    confidence,
-    specifications,
-    platformGuidance,
-    readyToPostText,
-    confidenceFlags,
   };
 }
 
 export async function POST(
   req: NextRequest
 ): Promise<NextResponse<GenerateListingResponse>> {
-  const groqApiKey = process.env.GROQ_API_KEY;
   const geminiApiKey = process.env.GEMINI_API_KEY;
-
-  if (!groqApiKey || groqApiKey.trim() === "" || groqApiKey === "your_key_here") {
-    return NextResponse.json(
-      {
-        error: {
-          type: "api",
-          message: "GROQ_API_KEY is not set",
-          hint: "Add GROQ_API_KEY to .env.local. Get a key at console.groq.com",
-        },
-      },
-      { status: 500 }
-    );
-  }
 
   if (!geminiApiKey || geminiApiKey.trim() === "" || geminiApiKey === "your_key_here") {
     return NextResponse.json(
@@ -211,17 +121,18 @@ export async function POST(
 
   let imageBase64: string;
   let mediaType: string;
-  let country: CountryCode;
-  let language: LanguageCode;
   let currency: CurrencyCode;
 
   try {
     const body = await req.json();
     imageBase64 = body.imageBase64;
     mediaType = body.mediaType || "image/jpeg";
-    country = isSupportedCountry(body.country) ? body.country : "PH";
-    language = isSupportedLanguage(body.language) ? body.language : getDefaultLanguage(country);
+    const country: CountryCode = isSupportedCountry(body.country) ? body.country : "PH";
+    const language: LanguageCode = isSupportedLanguage(body.language)
+      ? body.language
+      : getDefaultLanguage(country);
     currency = isSupportedCurrency(body.currency) ? body.currency : getDefaultCurrency(country);
+    void language;
 
     if (!imageBase64 || typeof imageBase64 !== "string" || imageBase64.length < 100) {
       return NextResponse.json(
@@ -248,35 +159,43 @@ export async function POST(
     );
   }
 
-  let visionDescription: string;
-
   try {
-    const response = await ai.models.generateContent({
-      model: "gemini-flash-latest",
-      contents: [
-        {
-          role: "user",
-          parts: [
-            {
-              text: VISION_PROMPT,
-            },
-            {
-              inlineData: {
-                mimeType: mediaType,
-                data: imageBase64,
-              },
-            },
-          ],
-        },
-      ],
-    });
+    const generated = await generateListingFromImage(imageBase64, mediaType);
+    const listing: ListingDraft = {
+      title: generated.title,
+      shortDescription: generated.description,
+      keyFeatures: [],
+      fullDescription: generated.description,
+      tags: [],
+      category: generated.category,
+      condition: "Good",
+      priceSuggestion: {
+        recommended: generated.price,
+        range: `${Math.max(0, generated.price - 100)}-${generated.price + 100}`,
+        currency,
+        rationale:
+          "Estimated from the visible product type, condition, and typical resale pricing in the Philippines.",
+      },
+      confidence: "medium",
+      specifications: {
+        colour: null,
+        material: null,
+        brand: null,
+        size: null,
+        style: null,
+      },
+      platformGuidance: {
+        facebookMarketplace: "Use the first sentence as the opening line and keep the price visible.",
+        shopee: "Use the generated title directly and add precise specs before publishing.",
+        lazada: "Keep the description concise and repeat the main product keywords once.",
+        tiktokShop: "Lead with the most visible product detail and keep the copy short.",
+        shopify: "Expand the description later with shipping and return details if needed.",
+      },
+      readyToPostText: `${generated.title}\nPrice: ${currency} ${generated.price}\n\n${generated.description}`,
+      confidenceFlags: [],
+    };
 
-    const caption = response.text;
-    if (!caption || caption.trim() === "") {
-      throw new Error("Gemini returned empty caption");
-    }
-
-    visionDescription = caption;
+    return NextResponse.json({ listing });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
     const lower = message.toLowerCase();
@@ -346,111 +265,28 @@ export async function POST(
       );
     }
 
+    if (lower.includes("json") || lower.includes("incomplete")) {
+      return NextResponse.json(
+        {
+          error: {
+            type: "parse",
+            message: "Gemini returned an invalid or incomplete listing",
+            hint: "Retry the request with a clearer product image.",
+          },
+        },
+        { status: 500 }
+      );
+    }
+
     return NextResponse.json(
       {
         error: {
           type: "api",
-          message: `Vision step failed: ${message}`,
+          message: `Listing generation failed: ${message}`,
           hint: "Try again or check the Gemini API status.",
         },
       },
       { status: 500 }
     );
   }
-
-  let rawText: string;
-
-  try {
-    rawText = await callGroqListing(visionDescription, { language, currency, country }, groqApiKey);
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : String(err);
-    const lower = message.toLowerCase();
-
-    if (message.includes("401") || lower.includes("invalid api key")) {
-      return NextResponse.json(
-        {
-          error: {
-            type: "api",
-            message: "Groq API key is invalid (401)",
-            hint: "Check GROQ_API_KEY in .env.local. Get a free key at console.groq.com",
-          },
-        },
-        { status: 401 }
-      );
-    }
-
-    if (message.includes("429") || lower.includes("rate limit")) {
-      return NextResponse.json(
-        {
-          error: {
-            type: "api",
-            message: "Groq rate limit exceeded (429)",
-            hint: "Wait a moment and retry.",
-          },
-        },
-        { status: 429 }
-      );
-    }
-
-    if (message.includes("503") || lower.includes("unavailable")) {
-      return NextResponse.json(
-        {
-          error: {
-            type: "api",
-            message: "Groq service temporarily unavailable",
-            hint: "Retry after a few seconds.",
-          },
-        },
-        { status: 503 }
-      );
-    }
-
-    if (lower.includes("fetch") || lower.includes("network")) {
-      return NextResponse.json(
-        {
-          error: {
-            type: "network",
-            message: "Could not reach Groq API",
-            hint: "Check your internet connection.",
-          },
-        },
-        { status: 502 }
-      );
-    }
-
-    return NextResponse.json(
-      {
-        error: {
-          type: "api",
-          message: `Groq listing generation failed: ${message}`,
-          hint: "Try again or check status at status.groq.com",
-        },
-      },
-      { status: 500 }
-    );
-  }
-
-  const cleanText = extractJSON(rawText);
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let parsed: any;
-
-  try {
-    parsed = JSON.parse(cleanText);
-  } catch {
-    return NextResponse.json(
-      {
-        error: {
-          type: "parse",
-          message: "Groq returned text that could not be parsed as JSON",
-          hint: "Try again. If this keeps happening, the model prompt may need adjustment.",
-        },
-      },
-      { status: 500 }
-    );
-  }
-
-  const listing: ListingDraft = normalizeListing(parsed, currency);
-
-  return NextResponse.json({ listing });
 }
