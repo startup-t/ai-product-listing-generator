@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { memo, useState } from "react";
 import {
   formatCurrencyRange,
   formatCurrencyValue,
@@ -50,7 +50,7 @@ function cfIcon(c: ConfidenceLevel) {
   return c === "high" ? "✓" : c === "medium" ? "~" : "?";
 }
 
-export function ListingPreview({
+function ListingPreviewComponent({
   listing,
   language,
   country,
@@ -260,3 +260,5 @@ export function ListingPreview({
     </div>
   );
 }
+
+export const ListingPreview = memo(ListingPreviewComponent);

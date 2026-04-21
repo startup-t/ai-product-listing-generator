@@ -8,10 +8,6 @@ interface UploadZoneProps {
   preview: string | null;
   title?: string;
   subtitle?: string;
-  downloadLabel?: string;
-  downloadHref?: string | null;
-  downloadName?: string;
-  showDownload?: boolean;
 }
 
 export function UploadZone({
@@ -19,10 +15,6 @@ export function UploadZone({
   preview,
   title = "Drop a product photo here",
   subtitle = "or click to browse — JPG, PNG, WEBP",
-  downloadLabel = "Download cleaned image",
-  downloadHref,
-  downloadName = "product-image-cleaned.jpg",
-  showDownload = false,
 }: UploadZoneProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
@@ -63,17 +55,6 @@ export function UploadZone({
               <img src={preview} alt="Product preview" className={styles.preview} />
             </div>
           </div>
-          {showDownload && downloadHref && (
-            <div className={styles.previewActions}>
-              <a
-                href={downloadHref}
-                download={downloadName}
-                className={styles.downloadBtn}
-              >
-                {downloadLabel}
-              </a>
-            </div>
-          )}
         </div>
       ) : (
         <div className={styles.placeholder}>

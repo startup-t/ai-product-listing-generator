@@ -465,12 +465,50 @@
   color: #1F8F4E;
 }
 
+.progressWrap {
+  margin-bottom: 18px;
+}
+
+.progressLabel {
+  margin: 0 0 8px;
+  font-size: 12px;
+  color: var(--text-2);
+}
+
+.progressTrack {
+  width: 100%;
+  max-width: 560px;
+  height: 8px;
+  border-radius: 999px;
+  background: #e8ecff;
+  overflow: hidden;
+}
+
+.progressFill {
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #6366f1 0%, #4f46e5 100%);
+  transition: width 140ms linear;
+}
+
 @media (min-width: 768px) {
   .successMessage {
     gap: 6px;
     padding: 8px 12px;
     margin-bottom: 28px;
     font-size: 13px;
+  }
+
+  .progressWrap {
+    margin-bottom: 24px;
+  }
+
+  .progressLabel {
+    font-size: 13px;
+  }
+
+  .progressTrack {
+    height: 9px;
   }
 }
 

@@ -3,8 +3,6 @@
 import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import { UploadZone } from "@/components/UploadZone";
-import { ProgressSteps, getProgressSteps } from "@/components/ProgressSteps";
-import { ErrorBox } from "@/components/ErrorBox";
 import { ListingPreview } from "@/components/ListingPreview";
 import { FeedbackWidget } from "@/components/FeedbackWidget";
 import {
@@ -22,53 +20,13 @@ import {
   type CurrencyCode,
   type LanguageCode,
 } from "@/lib/localization";
-import {
-  placeOnWhiteBackground,
-  removeBackgroundFromImage,
-  resizeImageForBackgroundRemoval,
-} from "@/lib/removeBackground";
-import type { ListingDraft } from "@/types/listing";
-import type { StepState } from "@/components/ProgressSteps";
+import { useUploadFlow } from "@/lib/pipeline/uploadFlow";
 import styles from "./page.module.css";
-
-type AppError = {
-  type: "network" | "api" | "parse" | "validation";
-  message: string;
-  hint?: string;
-};
-
-type Notice = {
-  message: string;
-  hint?: string;
-};
-
-type StepId = "bg" | "vision" | "price" | "listing";
-
-type ImageAsset = {
-  base64: string;
-  mediaType: string;
-  previewUrl: string;
-};
 
 const COUNTRY_OPTIONS: CountryCode[] = ["US", "CN", "FR", "PL", "CA", "PH"];
 const CURRENCY_OPTIONS = Object.entries(CURRENCY_LABELS) as [CurrencyCode, string][];
 
 export default function Home() {
-  const [file, setFile] = useState<File | null>(null);
-  const [imageAsset, setImageAsset] = useState<ImageAsset | null>(null);
-  const [hasProcessedImage, setHasProcessedImage] = useState(false);
-  const [stepStates, setStepStates] = useState<Record<StepId, StepState>>({
-    bg: "idle",
-    vision: "idle",
-    price: "idle",
-    listing: "idle",
-  });
-  const [generating, setGenerating] = useState(false);
-  const [showProgress, setShowProgress] = useState(false);
-  const [error, setError] = useState<AppError | null>(null);
-  const [notice, setNotice] = useState<Notice | null>(null);
-  const [listing, setListing] = useState<ListingDraft | null>(null);
-  const [generatedListingId, setGeneratedListingId] = useState<string | null>(null);
   const [country, setCountry] = useState<CountryCode>("US");
   const [language, setLanguage] = useState<LanguageCode>(getDefaultLanguage("US"));
   const [currency, setCurrency] = useState<CurrencyCode>(getDefaultCurrency("US"));
@@ -99,46 +57,6 @@ export default function Home() {
     };
   }, []);
 
-  function setStep(id: StepId, state: StepState) {
-    setStepStates((prev) => ({ ...prev, [id]: state }));
-  }
-
-  function parseDataUrl(dataURL: string): ImageAsset {
-    const [header, base64 = ""] = dataURL.split(",");
-    const mediaTypeMatch = header.match(/^data:(.*?);base64$/);
-
-    return {
-      base64,
-      mediaType: mediaTypeMatch?.[1] || "image/jpeg",
-      previewUrl: dataURL,
-    };
-  }
-
-  function handleFile(nextFile: File, dataURL: string) {
-    setFile(nextFile);
-    setImageAsset(parseDataUrl(dataURL));
-    setHasProcessedImage(false);
-    setListing(null);
-    setGeneratedListingId(null);
-    setError(null);
-    setNotice(null);
-    setShowProgress(false);
-    setStepStates({ bg: "idle", vision: "idle", price: "idle", listing: "idle" });
-  }
-
-  function reset() {
-    setFile(null);
-    setImageAsset(null);
-    setHasProcessedImage(false);
-    setListing(null);
-    setGeneratedListingId(null);
-    setError(null);
-    setNotice(null);
-    setShowProgress(false);
-    setGenerating(false);
-    setStepStates({ bg: "idle", vision: "idle", price: "idle", listing: "idle" });
-  }
-
   function handleCountryChange(nextCountry: CountryCode) {
     setCountry(nextCountry);
     setLanguage(getDefaultLanguage(nextCountry));
@@ -146,124 +64,24 @@ export default function Home() {
     setCountryMenuOpen(false);
   }
 
-  async function generate() {
-    if (!file || !imageAsset) return;
+  const {
+    file,
+    imagePreview,
+    listingResult,
+    generatedListingId,
+    loadingState,
+    progress,
+    aiStep,
+    handleFile,
+    reset,
+  } = useUploadFlow({
+    country,
+    language,
+    currency,
+  });
 
-    setGenerating(true);
-    setListing(null);
-    setError(null);
-    setNotice(null);
-    setShowProgress(true);
-    setStepStates({ bg: "idle", vision: "idle", price: "idle", listing: "idle" });
-
-    try {
-      setStep("bg", "running");
-
-      let generationImageBase64 = imageAsset.base64;
-      let generationMediaType = imageAsset.mediaType;
-
-      if (!generationImageBase64 || generationImageBase64.length < 100) {
-        throw {
-          type: "validation",
-          message: t(language, "couldNotReadImage"),
-          hint: t(language, "tryDifferentImage"),
-        } satisfies AppError;
-      }
-
-      try {
-        const resizedFile = await resizeImageForBackgroundRemoval(file);
-        const removedBgBlob = await removeBackgroundFromImage(resizedFile);
-        const cleanedDataUrl = await placeOnWhiteBackground(removedBgBlob);
-        const cleanedImage = parseDataUrl(cleanedDataUrl);
-
-        generationImageBase64 = cleanedImage.base64;
-        generationMediaType = cleanedImage.mediaType;
-        setImageAsset(cleanedImage);
-        setHasProcessedImage(true);
-      } catch (bgErr) {
-        console.error("Background removal failed:", bgErr);
-        setHasProcessedImage(false);
-        setNotice({
-          message: t(language, "backgroundFallbackNotice"),
-          hint: t(language, "backgroundFallbackHint"),
-        });
-      }
-
-      setStep("bg", "done");
-      setStep("vision", "running");
-      setStep("price", "running");
-      setStep("listing", "running");
-
-      const response = await fetch("/api/generate-listing", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          imageBase64: generationImageBase64,
-          mediaType: generationMediaType,
-          country,
-          language,
-          currency,
-        }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok || data.error) {
-        const apiError = data.error ?? { type: "api", message: `Server error ${response.status}` };
-        throw apiError as AppError;
-      }
-
-      if (!data.listing) {
-        throw {
-          type: "parse",
-          message: t(language, "serverReturnedNoListing"),
-          hint: t(language, "tryAgain"),
-        } satisfies AppError;
-      }
-
-      setStep("vision", "done");
-      setStep("price", "done");
-      setStep("listing", "done");
-      setListing(data.listing);
-      setGeneratedListingId(crypto.randomUUID());
-    } catch (err: unknown) {
-      setStepStates((prev) => {
-        const next = { ...prev };
-        (Object.keys(next) as StepId[]).forEach((key) => {
-          if (next[key] === "running") next[key] = "idle";
-        });
-        return next;
-      });
-
-      if (err && typeof err === "object" && "type" in err) {
-        setError(err as AppError);
-      } else if (err instanceof Error) {
-        const lower = err.message.toLowerCase();
-        const isNetworkErr = lower.includes("failed to fetch") || lower.includes("networkerror");
-        setError({
-          type: "network",
-          message: isNetworkErr ? t(language, "couldNotReachServer") : err.message,
-          hint: isNetworkErr
-            ? t(language, "devServerHint")
-            : undefined,
-        });
-      } else {
-        setError({
-          type: "api",
-          message: t(language, "unexpectedError"),
-          hint: t(language, "consoleHint"),
-        });
-      }
-    } finally {
-      setGenerating(false);
-    }
-  }
-
-  const steps = getProgressSteps(language).map((step) => ({
-    ...step,
-    state: stepStates[step.id as StepId],
-  }));
-  const preview = imageAsset?.previewUrl ?? null;
+  const generating = loadingState;
+  const listing = listingResult;
   const generatedPrice =
     listing?.priceSuggestion?.recommended != null
       ? formatCurrencyValue(
@@ -345,13 +163,9 @@ export default function Home() {
 
         <UploadZone
           onFile={handleFile}
-          preview={preview}
+          preview={imagePreview?.previewUrl ?? null}
           title={t(language, "uploadTitle")}
           subtitle={t(language, "uploadSub")}
-          downloadLabel={t(language, "downloadCleanedImage")}
-          showDownload={hasProcessedImage}
-          downloadHref={hasProcessedImage ? preview : null}
-          downloadName="product-image-cleaned.jpg"
         />
 
         <div className={styles.actions}>
@@ -385,11 +199,7 @@ export default function Home() {
             </select>
           </div>
 
-          <button onClick={generate} disabled={!file || generating} className={styles.generateBtn}>
-            {generating ? t(language, "generating") : t(language, "generate")}
-          </button>
-
-          {(listing || error) && (
+          {(listing || file) && (
             <button className={styles.resetBtn} onClick={reset}>
               {t(language, "startOver")}
             </button>
@@ -398,14 +208,19 @@ export default function Home() {
 
         <p className={styles.examplePrompt}>{t(language, "examplePrompt")}</p>
 
-        {generating && showProgress && <ProgressSteps steps={steps} language={language} />}
-
-        {listing && !error && (
-          <div className={styles.successMessage}>✓ {t(language, "listingSuccess")}</div>
+        {generating && (
+          <div className={styles.progressWrap} aria-live="polite">
+            <p className={styles.progressLabel}>Generating your listing (3-5 seconds)...</p>
+            {aiStep && <p className={styles.progressLabel}>{aiStep}</p>}
+            <div className={styles.progressTrack} role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(progress)}>
+              <div className={styles.progressFill} style={{ width: `${progress}%` }} />
+            </div>
+          </div>
         )}
 
-        {error && <ErrorBox type={error.type} message={error.message} hint={error.hint} language={language} />}
-        {!error && notice && <ErrorBox type="warning" message={notice.message} hint={notice.hint} language={language} />}
+        {listing && (
+          <div className={styles.successMessage}>✓ {t(language, "listingSuccess")}</div>
+        )}
 
         {listing && (
           <ListingPreview
