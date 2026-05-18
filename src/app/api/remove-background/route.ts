@@ -34,7 +34,7 @@ async function processWithRembgService(
   }
 
   const formData = new FormData();
-  formData.append("file", new Blob([fileBuffer], { type: fileType }), fileName);
+  formData.append("file", new Blob([new Uint8Array(fileBuffer)], { type: fileType }), fileName);
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), REMBG_TIMEOUT_MS);
@@ -57,8 +57,8 @@ async function processWithRembgService(
   }
 }
 
-function buildImageResponse(image: ProcessedImage): NextResponse<Buffer> {
-  return new NextResponse(image.buffer, {
+function buildImageResponse(image: ProcessedImage): NextResponse<Uint8Array> {
+  return new NextResponse(new Uint8Array(image.buffer), {
     status: 200,
     headers: {
       "Content-Type": image.contentType,
@@ -67,7 +67,7 @@ function buildImageResponse(image: ProcessedImage): NextResponse<Buffer> {
   });
 }
 
-export async function POST(request: NextRequest): Promise<NextResponse<Buffer | { error: string }>> {
+export async function POST(request: NextRequest): Promise<NextResponse<Uint8Array | { error: string }>> {
   let originalFileBuffer: Buffer;
   let originalFileType = "image/jpeg";
   let originalFileName = "upload-image";
@@ -103,7 +103,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<Buffer | 
       return buildImageResponse(fallback);
     } catch (fallbackError) {
       console.warn("Fallback white-background conversion failed, returning original binary.", fallbackError);
-      return new NextResponse(originalFileBuffer, {
+      return new NextResponse(new Uint8Array(originalFileBuffer), {
         status: 200,
         headers: {
           "Content-Type": originalFileType,
