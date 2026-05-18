@@ -62,22 +62,9 @@
   position: relative;
   width: 40px;
   height: 40px;
-  display: grid;
-  place-items: center;
   flex-shrink: 0;
   margin-top: 2px;
   border-radius: 8px;
-}
-
-.logoImage {
-  object-fit: contain;
-}
-
-.logoFallback {
-  font-size: 12px;
-  font-weight: 700;
-  color: #4338ca;
-  letter-spacing: 0.02em;
 }
 
 @media (min-width: 768px) {

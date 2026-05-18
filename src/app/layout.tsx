@@ -7,17 +7,9 @@ export const metadata: Metadata = {
   title: "AI Product Listing Generator — Photo to Instant Listing",
   description: "Upload a product photo and generate a ready-to-post marketplace listing in seconds.",
   icons: {
-    icon: [
-      { url: "/assets/logo.svg", type: "image/svg+xml" },
-      { url: "/logo.png", type: "image/png" },
-    ],
-    shortcut: ["/assets/logo.svg"],
-    apple: [{ url: "/logo.png" }],
-  },
-  openGraph: {
-    title: "AI Product Listing Generator — Photo to Instant Listing",
-    description: "Upload a product photo and generate a ready-to-post marketplace listing in seconds.",
-    images: [{ url: "/assets/logo.svg", type: "image/svg+xml" }],
+    icon: [{ url: "/icon.png", type: "image/png" }],
+    shortcut: ["/icon.png"],
+    apple: [{ url: "/icon.png" }],
   },
 };
 

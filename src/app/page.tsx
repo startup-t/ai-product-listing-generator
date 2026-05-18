@@ -27,10 +27,9 @@ const COUNTRY_OPTIONS: CountryCode[] = ["US", "CN", "FR", "PL", "CA", "PH"];
 const CURRENCY_OPTIONS = Object.entries(CURRENCY_LABELS) as [CurrencyCode, string][];
 
 export default function Home() {
-  const [logoLoadFailed, setLogoLoadFailed] = useState(false);
   const [country, setCountry] = useState<CountryCode>("US");
   const [language, setLanguage] = useState<LanguageCode>(getDefaultLanguage("US"));
-  const [currency, setCurrency] = useState<CurrencyCode>(getDefaultCurrency("US"));
+  const [currency, setCurrency] = useState<CurrencyCode>("PHP");
   const [countryMenuOpen, setCountryMenuOpen] = useState(false);
   const countryMenuRef = useRef<HTMLDivElement | null>(null);
 
@@ -100,21 +99,13 @@ export default function Home() {
           <div className={styles.headerTop}>
             <div className={styles.headerMain}>
               <div className={styles.logo}>
-                {logoLoadFailed ? (
-                  <span className={styles.logoFallback} aria-label="AI Product Listing Generator">
-                    AI
-                  </span>
-                ) : (
-                  <Image
-                    src="/assets/logo.svg"
-                    alt="AI Product Listing Generator logo"
-                    fill
-                    sizes="(max-width: 767px) 40px, 48px"
-                    className={styles.logoImage}
-                    priority
-                    onError={() => setLogoLoadFailed(true)}
-                  />
-                )}
+                <Image
+                  src="/logo.png"
+                  alt="AI Product Listing Generator logo"
+                  fill
+                  style={{ objectFit: "contain" }}
+                  priority
+                />
               </div>
               <div className={styles.headerContent}>
                 <h1 className={styles.headerTitle}>{t(language, "headerTitle")}</h1>
